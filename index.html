@@ -3,61 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Flappy Bird - Супер Вітер</title>
+    <title>Flappy Bird - Mobile Version</title>
     <style>
-        /* Стилі для адаптивності */
         body { 
             margin: 0; 
-            padding: 0;
-            text-align: center; 
-            background: skyblue; 
-            font-family: Arial; 
+            padding: 0; 
+            background: #4ec0ca; 
             overflow: hidden; 
+            font-family: Arial, sans-serif;
             display: flex;
             flex-direction: column;
+            align-items: center;
             height: 100vh;
         }
-        
-        .header { padding: 10px; }
-        
         canvas { 
             display: block; 
-            margin: auto; 
             background: lightblue; 
-            border: 3px solid #333; 
-            max-width: 100%; 
-            max-height: 80vh; /* Щоб залишалося місце для кнопок */
-            touch-action: none; /* Вимикає стандартні жести браузера, щоб зручніше грати */
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+            touch-action: none; /* Важливо для мобільних: прибирає затримку та гортання сторінки */
         }
-        
-        button { 
-            padding: 15px 30px; 
-            font-size: 20px; 
-            margin: 10px; 
-            cursor: pointer; 
-            background-color: #27ae60; 
-            color: white; 
-            border: none; 
-            border-radius: 5px; 
+        #ui {
+            position: absolute;
+            top: 10px;
+            text-align: center;
+            width: 100%;
+            pointer-events: none;
+            color: white;
+            text-shadow: 2px 2px #000;
             z-index: 10;
         }
-        
+        #mainBtn {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 15px 40px;
+            font-size: 24px;
+            background: #e67e22;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            z-index: 20;
+            pointer-events: auto;
+        }
         .hidden { display: none; }
-        #windAlert { color: #fff; font-weight: bold; font-size: 24px; position: absolute; width: 100%; top: 120px; display: none; text-shadow: 0 0 10px #f1c40f; }
     </style>
 </head>
 <body>
 
-    <div class="header">
+    <div id="ui">
         <h2>Рахунок: <span id="score">0</span> | Рекорд: <span id="best">0</span></h2>
-        <div id="windAlert">УВАГА: ТУРБО-БУРЕВІЙ!</div>
     </div>
 
+    <button id="mainBtn">ГРАТИ</button>
     <canvas id="gameCanvas"></canvas>
-
-    <div>
-        <button id="mainBtn">ГРАТИ</button>
-    </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
@@ -65,14 +65,19 @@
         const mainBtn = document.getElementById('mainBtn');
         const scoreDisplay = document.getElementById('score');
         const bestDisplay = document.getElementById('best');
-        const windAlert = document.getElementById('windAlert');
 
-        // ФУНКЦІЯ ПІДЛАШТУВАННЯ РОЗМІРУ
+        // --- АДАПТИВНІСТЬ ---
         function resizeCanvas() {
-            // Встановлюємо логічний розмір гри, але візуально вона масштабується через CSS
-            canvas.width = 400; 
-            canvas.height = 600; 
+            // Гра буде займати всю ширину екрана, але не більше 450px (для ПК)
+            let width = window.innerWidth;
+            let height = window.innerHeight;
+            
+            if (width > 450) width = 400; // Обмеження для великих екранів
+            
+            canvas.width = width;
+            canvas.height = height;
         }
+        window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
         let assetsLoaded = { bird: false, bg: false, pipe: false };
@@ -80,112 +85,120 @@
         const bgImg = new Image(); bgImg.src = "assets/bg.png"; bgImg.onload = () => assetsLoaded.bg = true;
         const pipeImg = new Image(); pipeImg.src = "assets/pipe.png"; pipeImg.onload = () => assetsLoaded.pipe = true;
 
-        // Пташка тепер за замовчуванням велика (як ти хотів)
-        let bird = { x: 50, y: 250, w: 64, h: 46, gravity: 0.22, velocity: 0, jump: -4.8 };
+        // ПАРАМЕТРИ ПТАШКИ (64x46 - як ти просив)
+        let bird = { x: 50, y: 250, w: 64, h: 46, gravity: 0.25, velocity: 0, jump: -5.5 };
         let pipes = [];
         let score = 0;
         let isGameRunning = false;
         let frame = 0;
-        let pipeCounter = 0;
-
-        const NORMAL_SPEED = 3.2;
-        const TURBO_SPEED = 7.5; 
-        let currentPipeSpeed = NORMAL_SPEED;
-        let pipeSpawnRate = 80;
 
         let highScore = localStorage.getItem('flappyBest') || 0;
         bestDisplay.innerText = highScore;
 
         function createPipe() {
-            pipeCounter++;
-            const gap = 150;
-            const h = Math.floor(Math.random() * (canvas.height - gap - 150)) + 75;
-            let speedY = (Math.random() > 0.5 ? 1 : -1) * (1.2 + Math.random());
-            let angle = 0;
-            if (pipeCounter % 4 === 0) { angle = (Math.random() * 0.4 - 0.2); speedY = 0; }
-            pipes.push({ x: canvas.width, y: h, gap: gap, passed: false, speedY: speedY, angle: angle, range: 60, centerY: h });
+            const gap = 160; // Трохи більше місця для великої пташки
+            const minH = 50;
+            const maxH = canvas.height - gap - 100;
+            const h = Math.floor(Math.random() * (maxH - minH)) + minH;
+            pipes.push({ x: canvas.width, y: h, gap: gap, passed: false });
         }
 
         function resetGame() {
-            bird.y = 250; bird.velocity = 0; pipes = []; score = 0; frame = 0; pipeCounter = 0;
-            currentPipeSpeed = NORMAL_SPEED; pipeSpawnRate = 80;
-            windAlert.style.display = "none";
-            canvas.style.transform = "translate(0, 0)";
+            bird.y = canvas.height / 2;
+            bird.velocity = 0;
+            pipes = [];
+            score = 0;
+            frame = 0;
             scoreDisplay.innerText = score;
-            isGameRunning = true; mainBtn.classList.add('hidden'); gameLoop();
+            isGameRunning = true;
+            mainBtn.classList.add('hidden');
+            gameLoop();
         }
 
         function gameOver() {
             isGameRunning = false;
-            mainBtn.innerText = "ЩЕ РАЗ?"; 
+            mainBtn.innerText = "ЩЕ РАЗ?";
             mainBtn.classList.remove('hidden');
-            if (score > highScore) { highScore = score; localStorage.setItem('flappyBest', highScore); bestDisplay.innerText = highScore; }
-        }
-
-        function drawPipe(p) {
-            ctx.save(); ctx.translate(p.x + 25, p.y + p.gap / 2); ctx.rotate(p.angle);
-            ctx.save(); ctx.translate(0, -p.gap / 2); ctx.rotate(Math.PI);
-            if (assetsLoaded.pipe) ctx.drawImage(pipeImg, -25, 0, 50, canvas.height);
-            else { ctx.fillStyle = "#2ecc71"; ctx.fillRect(-25, 0, 50, canvas.height); }
-            ctx.restore(); ctx.save(); ctx.translate(0, p.gap / 2);
-            if (assetsLoaded.pipe) ctx.drawImage(pipeImg, -25, 0, 50, canvas.height);
-            else { ctx.fillStyle = "#2ecc71"; ctx.fillRect(-25, 0, 50, canvas.height); }
-            ctx.restore(); ctx.restore();
-        }
-
-        function drawWindLines(isTurbo) {
-            if (isTurbo && isGameRunning) {
-                let shakeX = Math.random() * 4 - 2;
-                let shakeY = Math.random() * 2 - 1;
-                canvas.style.transform = `translate(${shakeX}px, ${shakeY}px)`;
-            }
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
-            ctx.lineWidth = 2;
-            let count = isTurbo ? 20 : 10;
-            for (let i = 0; i < count; i++) {
-                let y = (i * (canvas.height / count) + frame * 1) % canvas.height;
-                let x = (canvas.width - ((frame * (isTurbo ? 25 : 8) + i * 40) % (canvas.width + 50)));
-                ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 50, y); ctx.stroke();
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('flappyBest', highScore);
+                bestDisplay.innerText = highScore;
             }
         }
 
         function gameLoop() {
             if (!isGameRunning) return;
-            if (score >= 3 && score < 6) { currentPipeSpeed = TURBO_SPEED; pipeSpawnRate = 38; windAlert.style.display = "block"; } 
-            else { currentPipeSpeed = NORMAL_SPEED; pipeSpawnRate = 80; windAlert.style.display = "none"; }
 
-            bird.velocity += bird.gravity; bird.y += bird.velocity;
+            // Гравітація
+            bird.velocity += bird.gravity;
+            bird.y += bird.velocity;
+
+            // Фон
             if (assetsLoaded.bg) ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
-            else { ctx.fillStyle = "skyblue"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+            else { ctx.fillStyle = "#4ec0ca"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
 
-            drawWindLines(score >= 3 && score < 6);
-            if (frame % pipeSpawnRate === 0) createPipe();
+            // Труби
+            if (frame % 90 === 0) createPipe();
 
             for (let i = pipes.length - 1; i >= 0; i--) {
-                let p = pipes[i]; p.x -= currentPipeSpeed; 
-                if (p.speedY !== 0) { p.y += p.speedY; if (p.y > p.centerY + p.range || p.y < p.centerY - p.range) p.speedY *= -1; }
-                drawPipe(p);
-                if (bird.x + bird.w - 5 > p.x && bird.x + 5 < p.x + 50) { if (bird.y + 5 < p.y || bird.y + bird.h - 5 > p.y + p.gap) gameOver(); }
-                if (!p.passed && p.x + 50 < bird.x) { score++; p.passed = true; scoreDisplay.innerText = score; }
-                if (p.x < -100) pipes.splice(i, 1);
+                let p = pipes[i];
+                p.x -= 3;
+
+                // Малюємо труби
+                if (assetsLoaded.pipe) {
+                    // Верхня
+                    ctx.save();
+                    ctx.translate(p.x + 50, p.y);
+                    ctx.rotate(Math.PI);
+                    ctx.drawImage(pipeImg, 0, 0, 50, canvas.height);
+                    ctx.restore();
+                    // Нижня
+                    ctx.drawImage(pipeImg, p.x, p.y + p.gap, 50, canvas.height);
+                } else {
+                    ctx.fillStyle = "green";
+                    ctx.fillRect(p.x, 0, 50, p.y);
+                    ctx.fillRect(p.x, p.y + p.gap, 50, canvas.height);
+                }
+
+                // Колізії
+                if (bird.x + bird.w - 10 > p.x && bird.x + 10 < p.x + 50) {
+                    if (bird.y + 10 < p.y || bird.y + bird.h - 10 > p.y + p.gap) gameOver();
+                }
+
+                if (!p.passed && p.x + 50 < bird.x) {
+                    score++;
+                    p.passed = true;
+                    scoreDisplay.innerText = score;
+                }
+
+                if (p.x < -60) pipes.splice(i, 1);
             }
 
+            // Пташка
             if (assetsLoaded.bird) ctx.drawImage(birdImg, bird.x, bird.y, bird.w, bird.h);
             else { ctx.fillStyle = "yellow"; ctx.fillRect(bird.x, bird.y, bird.w, bird.h); }
 
+            // Межі екрана
             if (bird.y + bird.h > canvas.height || bird.y < 0) gameOver();
-            frame++; requestAnimationFrame(gameLoop);
+
+            frame++;
+            requestAnimationFrame(gameLoop);
         }
 
         const jump = () => { if(isGameRunning) bird.velocity = bird.jump; };
+
+        // КЕРУВАННЯ (Комп'ютер + Телефон)
+        window.addEventListener('keydown', (e) => { if(e.code === 'Space') jump(); });
+        canvas.addEventListener('touchstart', (e) => { 
+            e.preventDefault(); 
+            if(!isGameRunning && !mainBtn.classList.contains('hidden')) return; // Щоб не стрибати кнопкою
+            jump(); 
+        }, {passive: false});
         
-        // Події для телефону (Tap) та комп'ютера (Space / Mouse)
-        window.addEventListener('keydown', (e) => { if(e.code === 'Space') { e.preventDefault(); jump(); } });
-        canvas.addEventListener('mousedown', (e) => { e.preventDefault(); jump(); });
-        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); jump(); }, { passive: false });
-        
-        mainBtn.addEventListener('click', resetGame);
-        window.addEventListener('resize', resizeCanvas);
+        mainBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            resetGame();
+        });
     </script>
 </body>
 </html>
