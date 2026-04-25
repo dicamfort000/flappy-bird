@@ -2,26 +2,62 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Flappy Bird - Супер Вітер</title>
     <style>
-        body { margin: 0; text-align: center; background: skyblue; font-family: Arial; overflow: hidden; }
-        canvas { display: block; margin: 20px auto; background: lightblue; border: 3px solid #333; }
-        button { padding: 10px 20px; font-size: 18px; margin: 5px; cursor: pointer; background-color: #27ae60; color: white; border: none; border-radius: 5px; }
+        /* Стилі для адаптивності */
+        body { 
+            margin: 0; 
+            padding: 0;
+            text-align: center; 
+            background: skyblue; 
+            font-family: Arial; 
+            overflow: hidden; 
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        .header { padding: 10px; }
+        
+        canvas { 
+            display: block; 
+            margin: auto; 
+            background: lightblue; 
+            border: 3px solid #333; 
+            max-width: 100%; 
+            max-height: 80vh; /* Щоб залишалося місце для кнопок */
+            touch-action: none; /* Вимикає стандартні жести браузера, щоб зручніше грати */
+        }
+        
+        button { 
+            padding: 15px 30px; 
+            font-size: 20px; 
+            margin: 10px; 
+            cursor: pointer; 
+            background-color: #27ae60; 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+            z-index: 10;
+        }
+        
         .hidden { display: none; }
-        #windAlert { color: #fff; font-weight: bold; font-size: 28px; position: absolute; width: 100%; top: 100px; display: none; text-shadow: 0 0 10px #f1c40f, 0 0 20px #f1c40f; animation: blink 0.5s infinite; }
-        @keyframes blink { 50% { opacity: 0.5; } }
+        #windAlert { color: #fff; font-weight: bold; font-size: 24px; position: absolute; width: 100%; top: 120px; display: none; text-shadow: 0 0 10px #f1c40f; }
     </style>
 </head>
 <body>
 
-    <div id="windAlert">УВАГА: ТУРБО-БУРЕВІЙ!</div>
-    <div>
+    <div class="header">
         <h2>Рахунок: <span id="score">0</span> | Рекорд: <span id="best">0</span></h2>
-        <button id="mainBtn">ГРАТИ</button>
+        <div id="windAlert">УВАГА: ТУРБО-БУРЕВІЙ!</div>
     </div>
 
-    <canvas id="gameCanvas" width="400" height="500"></canvas>
+    <canvas id="gameCanvas"></canvas>
+
+    <div>
+        <button id="mainBtn">ГРАТИ</button>
+    </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
@@ -31,14 +67,21 @@
         const bestDisplay = document.getElementById('best');
         const windAlert = document.getElementById('windAlert');
 
-        let assetsLoaded = { bird: false, bg: false, pipe: false };
+        // ФУНКЦІЯ ПІДЛАШТУВАННЯ РОЗМІРУ
+        function resizeCanvas() {
+            // Встановлюємо логічний розмір гри, але візуально вона масштабується через CSS
+            canvas.width = 400; 
+            canvas.height = 600; 
+        }
+        resizeCanvas();
 
+        let assetsLoaded = { bird: false, bg: false, pipe: false };
         const birdImg = new Image(); birdImg.src = "assets/bird.png"; birdImg.onload = () => assetsLoaded.bird = true;
         const bgImg = new Image(); bgImg.src = "assets/bg.png"; bgImg.onload = () => assetsLoaded.bg = true;
         const pipeImg = new Image(); pipeImg.src = "assets/pipe.png"; pipeImg.onload = () => assetsLoaded.pipe = true;
 
-        // ЗБІЛЬШЕНО ПЕРСОНАЖА: 64x46 (було 48x34)
-        let bird = { x: 50, y: 250, w: 64, h: 46, gravity: 0.22, velocity: 0, jump: -5.0 };
+        // Пташка тепер за замовчуванням велика (як ти хотів)
+        let bird = { x: 50, y: 250, w: 64, h: 46, gravity: 0.22, velocity: 0, jump: -4.8 };
         let pipes = [];
         let score = 0;
         let isGameRunning = false;
@@ -55,7 +98,7 @@
 
         function createPipe() {
             pipeCounter++;
-            const gap = 140; // Трохи збільшив вікно, бо пташка тепер велика
+            const gap = 150;
             const h = Math.floor(Math.random() * (canvas.height - gap - 150)) + 75;
             let speedY = (Math.random() > 0.5 ? 1 : -1) * (1.2 + Math.random());
             let angle = 0;
@@ -73,9 +116,9 @@
         }
 
         function gameOver() {
-            isGameRunning = false; windAlert.style.display = "none";
-            canvas.style.transform = "translate(0, 0)";
-            mainBtn.innerText = "ЩЕ РАЗ?"; mainBtn.classList.remove('hidden');
+            isGameRunning = false;
+            mainBtn.innerText = "ЩЕ РАЗ?"; 
+            mainBtn.classList.remove('hidden');
             if (score > highScore) { highScore = score; localStorage.setItem('flappyBest', highScore); bestDisplay.innerText = highScore; }
         }
 
@@ -95,55 +138,54 @@
                 let shakeX = Math.random() * 4 - 2;
                 let shakeY = Math.random() * 2 - 1;
                 canvas.style.transform = `translate(${shakeX}px, ${shakeY}px)`;
-            } else {
-                canvas.style.transform = "translate(0, 0)";
             }
             ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
             ctx.lineWidth = 2;
             let count = isTurbo ? 20 : 10;
-            let lineLength = isTurbo ? 100 : 50;
-            let baseSpeed = isTurbo ? 25 : 8;
             for (let i = 0; i < count; i++) {
                 let y = (i * (canvas.height / count) + frame * 1) % canvas.height;
-                let x = (canvas.width - ((frame * baseSpeed + i * (canvas.width / count)) % (canvas.width + lineLength)));
-                let finalY = y + (isTurbo ? Math.sin(frame / 5 + i) * 5 : 0);
-                ctx.beginPath(); ctx.moveTo(x, finalY); ctx.lineTo(x + lineLength, finalY); ctx.stroke();
+                let x = (canvas.width - ((frame * (isTurbo ? 25 : 8) + i * 40) % (canvas.width + 50)));
+                ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 50, y); ctx.stroke();
             }
         }
 
         function gameLoop() {
             if (!isGameRunning) return;
-            if (score >= 3 && score < 6) {
-                currentPipeSpeed = TURBO_SPEED; pipeSpawnRate = 38; windAlert.style.display = "block";
-            } else {
-                currentPipeSpeed = NORMAL_SPEED; pipeSpawnRate = 80; windAlert.style.display = "none";
-            }
+            if (score >= 3 && score < 6) { currentPipeSpeed = TURBO_SPEED; pipeSpawnRate = 38; windAlert.style.display = "block"; } 
+            else { currentPipeSpeed = NORMAL_SPEED; pipeSpawnRate = 80; windAlert.style.display = "none"; }
+
             bird.velocity += bird.gravity; bird.y += bird.velocity;
             if (assetsLoaded.bg) ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
             else { ctx.fillStyle = "skyblue"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+
             drawWindLines(score >= 3 && score < 6);
             if (frame % pipeSpawnRate === 0) createPipe();
+
             for (let i = pipes.length - 1; i >= 0; i--) {
                 let p = pipes[i]; p.x -= currentPipeSpeed; 
                 if (p.speedY !== 0) { p.y += p.speedY; if (p.y > p.centerY + p.range || p.y < p.centerY - p.range) p.speedY *= -1; }
                 drawPipe(p);
-                // Колізія: x + 50 (ширина труби)
-                if (bird.x + bird.w - 8 > p.x && bird.x + 8 < p.x + 50) { 
-                    if (bird.y + 8 < p.y || bird.y + bird.h - 8 > p.y + p.gap) gameOver(); 
-                }
+                if (bird.x + bird.w - 5 > p.x && bird.x + 5 < p.x + 50) { if (bird.y + 5 < p.y || bird.y + bird.h - 5 > p.y + p.gap) gameOver(); }
                 if (!p.passed && p.x + 50 < bird.x) { score++; p.passed = true; scoreDisplay.innerText = score; }
                 if (p.x < -100) pipes.splice(i, 1);
             }
+
             if (assetsLoaded.bird) ctx.drawImage(birdImg, bird.x, bird.y, bird.w, bird.h);
             else { ctx.fillStyle = "yellow"; ctx.fillRect(bird.x, bird.y, bird.w, bird.h); }
+
             if (bird.y + bird.h > canvas.height || bird.y < 0) gameOver();
             frame++; requestAnimationFrame(gameLoop);
         }
 
         const jump = () => { if(isGameRunning) bird.velocity = bird.jump; };
+        
+        // Події для телефону (Tap) та комп'ютера (Space / Mouse)
         window.addEventListener('keydown', (e) => { if(e.code === 'Space') { e.preventDefault(); jump(); } });
         canvas.addEventListener('mousedown', (e) => { e.preventDefault(); jump(); });
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); jump(); }, { passive: false });
+        
         mainBtn.addEventListener('click', resetGame);
+        window.addEventListener('resize', resizeCanvas);
     </script>
 </body>
 </html>
