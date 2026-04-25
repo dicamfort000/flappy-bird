@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Bird - Супер Вітер</title>
+    <style>
+        body { margin: 0; text-align: center; background: skyblue; font-family: Arial; overflow: hidden; }
+        canvas { display: block; margin: 20px auto; background: lightblue; border: 3px solid #333; }
+        button { padding: 10px 20px; font-size: 18px; margin: 5px; cursor: pointer; background-color: #27ae60; color: white; border: none; border-radius: 5px; }
+        .hidden { display: none; }
+        #windAlert { color: #fff; font-weight: bold; font-size: 28px; position: absolute; width: 100%; top: 100px; display: none; text-shadow: 0 0 10px #f1c40f, 0 0 20px #f1c40f; animation: blink 0.5s infinite; }
+        @keyframes blink { 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body>
+
+    <div id="windAlert">УВАГА: ТУРБО-БУРЕВІЙ!</div>
+    <div>
+        <h2>Рахунок: <span id="score">0</span> | Рекорд: <span id="best">0</span></h2>
+        <button id="mainBtn">ГРАТИ</button>
+    </div>
+
+    <canvas id="gameCanvas" width="400" height="500"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const mainBtn = document.getElementById('mainBtn');
+        const scoreDisplay = document.getElementById('score');
+        const bestDisplay = document.getElementById('best');
+        const windAlert = document.getElementById('windAlert');
+
+        let assetsLoaded = { bird: false, bg: false, pipe: false };
+
+        const birdImg = new Image(); birdImg.src = "assets/bird.png"; birdImg.onload = () => assetsLoaded.bird = true;
+        const bgImg = new Image(); bgImg.src = "assets/bg.png"; bgImg.onload = () => assetsLoaded.bg = true;
+        const pipeImg = new Image(); pipeImg.src = "assets/pipe.png"; pipeImg.onload = () => assetsLoaded.pipe = true;
+
+        // ЗБІЛЬШЕНО ПЕРСОНАЖА: 64x46 (було 48x34)
+        let bird = { x: 50, y: 250, w: 64, h: 46, gravity: 0.22, velocity: 0, jump: -5.0 };
+        let pipes = [];
+        let score = 0;
+        let isGameRunning = false;
+        let frame = 0;
+        let pipeCounter = 0;
+
+        const NORMAL_SPEED = 3.2;
+        const TURBO_SPEED = 7.5; 
+        let currentPipeSpeed = NORMAL_SPEED;
+        let pipeSpawnRate = 80;
+
+        let highScore = localStorage.getItem('flappyBest') || 0;
+        bestDisplay.innerText = highScore;
+
+        function createPipe() {
+            pipeCounter++;
+            const gap = 140; // Трохи збільшив вікно, бо пташка тепер велика
+            const h = Math.floor(Math.random() * (canvas.height - gap - 150)) + 75;
+            let speedY = (Math.random() > 0.5 ? 1 : -1) * (1.2 + Math.random());
+            let angle = 0;
+            if (pipeCounter % 4 === 0) { angle = (Math.random() * 0.4 - 0.2); speedY = 0; }
+            pipes.push({ x: canvas.width, y: h, gap: gap, passed: false, speedY: speedY, angle: angle, range: 60, centerY: h });
+        }
+
+        function resetGame() {
+            bird.y = 250; bird.velocity = 0; pipes = []; score = 0; frame = 0; pipeCounter = 0;
+            currentPipeSpeed = NORMAL_SPEED; pipeSpawnRate = 80;
+            windAlert.style.display = "none";
+            canvas.style.transform = "translate(0, 0)";
+            scoreDisplay.innerText = score;
+            isGameRunning = true; mainBtn.classList.add('hidden'); gameLoop();
+        }
+
+        function gameOver() {
+            isGameRunning = false; windAlert.style.display = "none";
+            canvas.style.transform = "translate(0, 0)";
+            mainBtn.innerText = "ЩЕ РАЗ?"; mainBtn.classList.remove('hidden');
+            if (score > highScore) { highScore = score; localStorage.setItem('flappyBest', highScore); bestDisplay.innerText = highScore; }
+        }
+
+        function drawPipe(p) {
+            ctx.save(); ctx.translate(p.x + 25, p.y + p.gap / 2); ctx.rotate(p.angle);
+            ctx.save(); ctx.translate(0, -p.gap / 2); ctx.rotate(Math.PI);
+            if (assetsLoaded.pipe) ctx.drawImage(pipeImg, -25, 0, 50, canvas.height);
+            else { ctx.fillStyle = "#2ecc71"; ctx.fillRect(-25, 0, 50, canvas.height); }
+            ctx.restore(); ctx.save(); ctx.translate(0, p.gap / 2);
+            if (assetsLoaded.pipe) ctx.drawImage(pipeImg, -25, 0, 50, canvas.height);
+            else { ctx.fillStyle = "#2ecc71"; ctx.fillRect(-25, 0, 50, canvas.height); }
+            ctx.restore(); ctx.restore();
+        }
+
+        function drawWindLines(isTurbo) {
+            if (isTurbo && isGameRunning) {
+                let shakeX = Math.random() * 4 - 2;
+                let shakeY = Math.random() * 2 - 1;
+                canvas.style.transform = `translate(${shakeX}px, ${shakeY}px)`;
+            } else {
+                canvas.style.transform = "translate(0, 0)";
+            }
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+            ctx.lineWidth = 2;
+            let count = isTurbo ? 20 : 10;
+            let lineLength = isTurbo ? 100 : 50;
+            let baseSpeed = isTurbo ? 25 : 8;
+            for (let i = 0; i < count; i++) {
+                let y = (i * (canvas.height / count) + frame * 1) % canvas.height;
+                let x = (canvas.width - ((frame * baseSpeed + i * (canvas.width / count)) % (canvas.width + lineLength)));
+                let finalY = y + (isTurbo ? Math.sin(frame / 5 + i) * 5 : 0);
+                ctx.beginPath(); ctx.moveTo(x, finalY); ctx.lineTo(x + lineLength, finalY); ctx.stroke();
+            }
+        }
+
+        function gameLoop() {
+            if (!isGameRunning) return;
+            if (score >= 3 && score < 6) {
+                currentPipeSpeed = TURBO_SPEED; pipeSpawnRate = 38; windAlert.style.display = "block";
+            } else {
+                currentPipeSpeed = NORMAL_SPEED; pipeSpawnRate = 80; windAlert.style.display = "none";
+            }
+            bird.velocity += bird.gravity; bird.y += bird.velocity;
+            if (assetsLoaded.bg) ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+            else { ctx.fillStyle = "skyblue"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+            drawWindLines(score >= 3 && score < 6);
+            if (frame % pipeSpawnRate === 0) createPipe();
+            for (let i = pipes.length - 1; i >= 0; i--) {
+                let p = pipes[i]; p.x -= currentPipeSpeed; 
+                if (p.speedY !== 0) { p.y += p.speedY; if (p.y > p.centerY + p.range || p.y < p.centerY - p.range) p.speedY *= -1; }
+                drawPipe(p);
+                // Колізія: x + 50 (ширина труби)
+                if (bird.x + bird.w - 8 > p.x && bird.x + 8 < p.x + 50) { 
+                    if (bird.y + 8 < p.y || bird.y + bird.h - 8 > p.y + p.gap) gameOver(); 
+                }
+                if (!p.passed && p.x + 50 < bird.x) { score++; p.passed = true; scoreDisplay.innerText = score; }
+                if (p.x < -100) pipes.splice(i, 1);
+            }
+            if (assetsLoaded.bird) ctx.drawImage(birdImg, bird.x, bird.y, bird.w, bird.h);
+            else { ctx.fillStyle = "yellow"; ctx.fillRect(bird.x, bird.y, bird.w, bird.h); }
+            if (bird.y + bird.h > canvas.height || bird.y < 0) gameOver();
+            frame++; requestAnimationFrame(gameLoop);
+        }
+
+        const jump = () => { if(isGameRunning) bird.velocity = bird.jump; };
+        window.addEventListener('keydown', (e) => { if(e.code === 'Space') { e.preventDefault(); jump(); } });
+        canvas.addEventListener('mousedown', (e) => { e.preventDefault(); jump(); });
+        mainBtn.addEventListener('click', resetGame);
+    </script>
+</body>
+</html>

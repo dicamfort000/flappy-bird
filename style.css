@@ -1,0 +1,19 @@
+body {
+    margin: 0;
+    text-align: center;
+    background: skyblue;
+    font-family: Arial;
+}
+
+canvas {
+    display: block;
+    margin: 20px auto;
+    background: lightblue;
+}
+
+button {
+    padding: 10px 20px;
+    font-size: 18px;
+    margin: 5px;
+    cursor: pointer;
+}
